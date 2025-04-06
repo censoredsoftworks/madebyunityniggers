@@ -11,12 +11,12 @@
     "remove-capture-from-stock": true,
     "commands-give-cooldown": true,
 
-    "gen-channels": [YOUR_GEN_CHANNELS_IDS],
-    "admin-roles": [YOUR_ADMIN_ROLE_IDS],
+    "gen-channels": [12345678, 12345678],
+    "admin-roles": [12345678, 12345678],
     "roles": [
         {
-            "id": FREE_GEN_ROLE_ID,
-            "cooldown": COOLDOWN_IN_SECONDS,
+            "id": 12345678910,
+            "cooldown": 720,
             "can-bulk-gen": true,
             "bulk-gen-max": 2,
             "gen-access": ["all"]
