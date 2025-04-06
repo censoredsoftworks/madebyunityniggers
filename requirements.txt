@@ -1,0 +1,6 @@
+discord.py
+typing
+datetime
+httpx
+aiosqlite
+sqlalchemy

@@ -1,0 +1,47 @@
+{
+    "token": "MTMyMDE3Mzc3NDQzMTMyMjI3Mg.GDwOZA.NRKJ-JPTZuzReloCWBoYC0VmUNCwcUx3niQpdo",
+    "guild-id": "1308092484433346580",
+    "developer-server-id": "1320147181872877688",
+
+    "rotating-proxy": "a37d203db6ab7642c506:7ea265a826b7cc69:gw.dataimpulse.com:823",
+    "services-to-check-ubisoft": ["siege", "ubisoft"],
+    "siegeskins-api-key": "9e5df561c3734d708403e0c6b8da5af7",
+
+    "stock-command-silent": false,
+    "remove-capture-from-stock": true,
+    "commands-give-cooldown": true,
+
+    "gen-channels": [1312127845958553610, 1318150029428527124],
+    "admin-roles": [1318862296671326219],
+    "roles": [
+        {
+            "id": 1308191813219254303,
+            "cooldown": 720,
+            "can-bulk-gen": false,
+            "bulk-gen-max": 2,
+            "gen-access": ["all"]
+        }
+    ],
+
+    "subscription-stages": ["Free", "Premium"],
+
+    "messages": {
+        "noperms": "You do not have permissions to use this command.",
+        "wrongchannel": ":thinking: ",
+        "altsent": "Thank you for using **Wavesu Generator**",
+        "footer-msg": "Wavesu & 0nami Runs This Server"
+    },
+
+    "generate-settings": {
+        "gif-img-url": "https://cdn.discordapp.com/attachments/1319765848419991623/1319784632706797679/standard_2.gif?ex=67688a38&is=676738b8&hm=ea3434053111aab58b708c79feb0ae95b76c24eb81924565c1d2d5044ebd142b&"
+    },
+
+    "colors": {
+        "error": 16713025,
+        "success": 1288807,
+        "stock": 7229605
+    },
+
+    "_comment1": "Size for uploading stock. Default: 2097152 == 2mb",
+    "maximum-file-size": 2097152
+}
