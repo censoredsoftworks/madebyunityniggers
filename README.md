@@ -49,7 +49,6 @@ pip install discord.py
     "guild-id": "YOUR_GUILD_ID_HERE",
     "developer-server-id": "DEVELOPER_SERVER_ID",
     
-    // ... other configuration options
 }
 ```
 
