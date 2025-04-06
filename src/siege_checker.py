@@ -29,8 +29,6 @@ async def getAccountDetails(combo):
 
     while retries < max_retries:
         try:
-            #proxy = await format_proxy(config['rotating-proxy'])
-            #proxies = {"http://": proxy, "https://": proxy}
 
             async with httpx.AsyncClient(timeout=8) as session:
                 token = await get_account_token(user, password)
