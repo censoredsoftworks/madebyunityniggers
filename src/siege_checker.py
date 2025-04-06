@@ -138,3 +138,4 @@ async def getAccountDetails(combo):
                 return {'success': False, 'error': str(e)}
 
     return {'success': False, 'error': 'Max retries reached.'}
+
