@@ -1,7 +1,7 @@
-import discord, json
-from datetime import datetime
+import discord
 from discord import app_commands
-
+import json
+from datetime import datetime
 from io import StringIO
 from typing import List
 
@@ -15,7 +15,7 @@ config = json.load(open('config.json'))
 
 serviceList = []
 serviceList_2 = []
-is_everything_ready = False 
+is_everything_ready = False
 
 async def getServiceName(service_name, is_premium = False, get_real_name = False):
     if get_real_name:
@@ -40,7 +40,6 @@ async def updateServices(service_to_add=None):
             if service not in serviceList_2:
                 serviceList_2.append(service)
 
-
         return serviceList
     else:
         serviceList = await database.getServices()
@@ -51,10 +50,10 @@ async def updateServices(service_to_add=None):
     return
 
 async def stage_autcom(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    types = config['subscription-stages']
+    stages = ["Premium", "Free"]
     return [
-        app_commands.Choice(name=service, value=service)
-        for service in types if current.lower() in service.lower()
+        app_commands.Choice(name=stage, value=stage)
+        for stage in stages if current.lower() in stage.lower()
     ]
 
 async def service_autcom(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
@@ -64,13 +63,13 @@ async def service_autcom(interaction: discord.Interaction, current: str) -> List
         for service in types if current.lower() in service.lower()
     ]
 
-subscription = app_commands.Group(name="subscription", description="Manage subscriptions")
+auth = app_commands.Group(name="auth", description="Manage authentication and subscriptions")
 cooldown = app_commands.Group(name="cooldown", description="Manage cooldowns")
 
 @bot.event
 async def on_ready():
     global is_everything_ready
-    tree.add_command(subscription)
+    tree.add_command(auth)
     tree.add_command(cooldown)
     tree.copy_global_to(guild=discord.Object(id=config["guild-id"]))
     await tree.sync(guild=discord.Object(id=config["guild-id"]))
@@ -82,10 +81,9 @@ async def on_ready():
     is_everything_ready = True
     print("Logged in as {0.user}".format(bot))
 
-@tree.command(name = "gen", description = "Generate an account of your choice", guild=discord.Object(id=config["guild-id"]))
+@tree.command(name = "generate", description = "Generate an account of your choice", guild=discord.Object(id=config["guild-id"]))
 @app_commands.autocomplete(service=service_autcom)
-async def gen(interaction: discord.Interaction, service: str, is_premium: bool=False):
-    
+async def generate(interaction: discord.Interaction, service: str, is_premium: bool=False):
     if not is_everything_ready:
         return await interaction.response.send_message("Bot is starting.", ephemeral=True)
     
@@ -157,7 +155,6 @@ async def gen(interaction: discord.Interaction, service: str, is_premium: bool=F
             if _user_cldw is not None:
                 await database.set_user_cooldown(interaction.user.id, rndm_stage, int(_user_cldw))
     
-    
     real_service_name = await getServiceName(service, is_premium)
     success, account = await database.getAccount(real_service_name)
     if not success:
@@ -167,22 +164,24 @@ async def gen(interaction: discord.Interaction, service: str, is_premium: bool=F
     else:
         try:
             await interaction.response.defer()
-
             await database.addUser(str(interaction.user.id), did_gen=True)
-        
+
+            email, password = account.split(":")
+
             embd=discord.Embed(
-                title=f"★ Account Generated :label: ",
-                description=config['messages']['altsent'] + f"\n||```yml\n{account}\n```||",
+                title=f"Account Generated",
+                description=f"Thank You For Using {interaction.guild.name}'s Generator!\n\n" +
+                          f"Account Credentials Below\n\n" +
+                          f"Email: {email}\n" +
+                          f"Password: {password}\n",
                 color=config['colors']['success']
             )
-            embd.add_field(
-                name="★ Basic Information",
-                value='`The account is being checked, be patient!`'
+
+            embd2=discord.Embed(
+                title=f"`{service}` generated",
+                description=f':incoming_envelope: Check your DMs for the account.\n{"**It might take a second to receive your account!**" if service in config["services-to-check-ubisoft"] else ""}',
+                color=config['colors']['success']
             )
-
-            is_ubisoft = True if service in config['services-to-check-ubisoft'] else False
-
-            embd2=discord.Embed(title=f"`{service}` generated :label: ",description=f':incoming_envelope: Check your DMs for the account.\n{"**It might take a second to receive your account!**" if is_ubisoft else ""}',color=config['colors']['success'])
             embd2.set_footer(text=config['messages']['footer-msg'],icon_url=interaction.user.display_avatar.url)
             embd2.set_image(url=config["generate-settings"]["gif-img-url"])
             await interaction.followup.send(embed=embd2, ephemeral=False)
@@ -194,56 +193,54 @@ async def gen(interaction: discord.Interaction, service: str, is_premium: bool=F
         channel = await interaction.user.create_dm()
         msg = await channel.send(embed=embd)
         
-        if is_ubisoft:
+        if service in config['services-to-check-ubisoft']:
             try:
                 inform = await siege_checker.getAccountDetails(account)
-                embd=discord.Embed(
-                    title=f"★ Account Generated :label: ",
-                    description=config['messages']['altsent'] + f"\n||```yml\n{account}\n```||",
-                    color=config['colors']['success']
-                )
-
                 if not inform['success']:
                     embd.color = config['colors']['error']
                     embd.add_field(
-                        name="★ Basic Information",
-                        value='`Failed to retrieve basic information!`'
+                        name="Account Information",
+                        value='`Failed to retrieve account information!`'
                     )
                 else:
                     info = inform['information']
                     if info:
-                        ghost_link = f"**Ghost Linked Platforms**: " + ", ".join(f"`{platform}`" for platform in info['ghost_linked']) + "\n"
-                        ghost_link_2 = f'{ghost_link}' if len(info['ghost_linked']) >= 1 else ''
-                        info_note = info['note']
-                        info_note_2 = '' if not info_note else f"**{info_note}**" + "\n"
                         embd.add_field(
-                            name="★ Basic Information",
-                            value=f"**Username**: `{info['username']}`\n" + 
-                            f"**Level Info**:  `{info['level']}` **({info['xp']} XP)**\n" + 
-                            f"**Linked Platforms**: " + ", ".join(f"`{platform}`" for platform in info['linked_platforms']) + "\n" + 
-                            f"{ghost_link_2}" + 
-                            f"**2FA/MFA**:  `{info['2fa-mfa']}`\n" + 
-                            f"**Currency**: Renown: `{info['currency-renown']}`; Credits: `{info['currency-credits']}`\n" + 
-                            f"**Banned**: `{info['banned']}`\n" + 
-                            f"**Skins**: `{info['amount_of_skins']}`\n\n" + 
-                            f'{info_note_2}' + 
-                            f"For more info about this account check [HERE]({str(info['siegeskinssiteurl'])})!",
+                            name="Account Information",
+                            value=f"・Username: `{info['username']}`\n" +
+                                  f"・Level: `{info['level']}`\n" +
+                                  f"・Banned: `{info['banned']}`\n",
                             inline=False
                         )
-                        try:
-                            items_25_inventory = list(info['inventory'].items())[:24]
-                            info['inventory'] = dict(items_25_inventory)
-                            for category, item_count in info['inventory'].items():
-                                embd.add_field(name=str(category), value=f"{str(item_count)} items.", inline=True)
-                        except Exception as e:
-                            print(e)
-                    else:
-                        embd.color = config['colors']['error']
+                        
                         embd.add_field(
-                            name="★ Basic Information",
-                            value='`Failed to retrieve basic information!`'
+                            name="Currency",
+                            value=f"・Renown: `{info['currency-renown']}`\n" +
+                                  f"・Credits: `{info['currency-credits']}`\n",
+                            inline=False
                         )
-                embd.set_footer(text=config['messages']['footer-msg'],icon_url=interaction.user.display_avatar.url)
+
+                        linked_platforms = ", ".join(f"`{platform}`" for platform in info['linked_platforms'])
+                        ghost_platforms = ", ".join(f"`{platform}`" for platform in info['ghost_linked'])
+                        
+                        embd.add_field(
+                            name="Platforms",
+                            value=f"・Linked Platforms: {linked_platforms}\n",
+                        inline=False
+                    )
+
+                    inventory = info['inventory']
+                    embd.add_field(
+                        name="Account Inventory",
+                        value=(
+                            f"・Total Skins: `{info['amount_of_skins']}`\n" +
+                            f"・Seasonals: `{inventory.get('Seasonals', 0)}`\n" +
+                            f"More Information About This Account [HERE]({info['siegeskinssiteurl']})"
+                        ),
+                        inline=False
+                    )
+
+                embd.set_footer(text=config['messages']['footer-msg'], icon_url=interaction.user.display_avatar.url)
                 return await msg.edit(embed=embd)
             except Exception as e:
                 print(e)
@@ -251,6 +248,46 @@ async def gen(interaction: discord.Interaction, service: str, is_premium: bool=F
         await database.addStock(real_service_name, [account], config['remove-capture-from-stock'])
         await database.reset_user_cooldown(str(interaction.user.id), rndm_stage)
         return await interaction.followup.send(content=f"{interaction.user.mention}, couldn't send you a DM, open your DMs!", ephemeral=True)
+
+@tree.command(name = "user", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
+async def usercmd(interaction: discord.Interaction, user: discord.User):
+    role_ids = [role.id for role in interaction.user.roles]
+    if not any(role_id in config['admin-roles'] for role_id in role_ids):
+        embed_error = discord.Embed(
+            title=f"Error: Access Forbidden",
+            description=f"You don't have permission to use this command.",
+            color=config['colors']['error']
+        )
+        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
+    
+    if not is_everything_ready:
+        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
+    
+    the_user = await database.addUser(str(user.id))
+    if the_user:
+        embd=discord.Embed(
+            title=f"Found {user.name}",
+            description=f"**ID**: `{the_user['user_id']}`\n" +
+            f"**Last Gen**: `{the_user['last_time_genned']}`\n" +
+            f"**Total Genned**: `{the_user['amount_genned']}`\n" +
+            f"**Is Blacklisted**: `{the_user['is_blacklisted']}`\n" +
+            f"**Cooldown end**: `{the_user['user_cooldown']}`\n" +
+            f"**Sub Time Left**: `{the_user['subscription_time_left']}`\n" +
+            f"**Sub Stage**: `{the_user['subscription_stage']}`\n" +
+            f"**Role**: `{the_user['role']}`\n\n" +
+            f"Notes about user: `{the_user['notes']}`\n",
+            color=int(config['colors']['success'])
+        )
+        embd.set_footer(text=config['messages']['footer-msg'])
+    else:
+        embd=discord.Embed(
+            title=f"Error getting user!",
+            description=f'`This user does not exist in the database.`',
+            color=int(config['colors']['error'])
+        )
+        embd.set_footer(text=config['messages']['footer-msg'])
+    
+    return await interaction.response.send_message(embed=embd, ephemeral=True)
 
 @tree.command(name = "addstock", description = "(admin only)", guilds=[discord.Object(id=config["guild-id"]), discord.Object(id=config["developer-server-id"])])
 @app_commands.autocomplete(service=service_autcom)
@@ -310,8 +347,7 @@ async def addaccounts(interaction: discord.Interaction, service: str, file: disc
 
 @tree.command(name = "bulkgen", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
 @app_commands.autocomplete(service=service_autcom)
-async def usercmd(interaction: discord.Interaction, service: str, amount: int, is_premium: bool, is_silent: bool=True):
-    
+async def bulkgen(interaction: discord.Interaction, service: str, amount: int, is_premium: bool, is_silent: bool=True):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -343,54 +379,11 @@ async def usercmd(interaction: discord.Interaction, service: str, amount: int, i
         return await interaction.response.send_message(embed=embed_error, ephemeral=True)
     
     accounts_in_file = discord.File(fp=StringIO("\n".join([str(account) for account in accounts])), filename=f"{service}-{amount}.txt")
-    return await interaction.response.send_message(content=f"Successfully generated `{amount}` accounts for `{service}`", file=accounts_in_file, ephemeral=True)                          
-                                    
-
-@tree.command(name = "user", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
-async def usercmd(interaction: discord.Interaction, user: discord.User):
-    
-    role_ids = [role.id for role in interaction.user.roles]
-    if not any(role_id in config['admin-roles'] for role_id in role_ids):
-        embed_error = discord.Embed(
-            title=f"Error: Access Forbidden",
-            description=f"You don't have permission to use this command.",
-            color=config['colors']['error']
-        )
-        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
-    
-    if not is_everything_ready:
-        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
-    
-    the_user = await database.addUser(str(user.id))
-    if the_user:
-        embd=discord.Embed(
-            title=f"Found {user.name}",
-            description=f"**ID**: `{the_user['user_id']}`\n" +
-            f"**Last Gen**: `{the_user['last_time_genned']}`\n" +
-            f"**Total Genned**: `{the_user['amount_genned']}`\n" +
-            f"**Is Blacklisted**: `{the_user['is_blacklisted']}`\n" +
-            f"**Cooldown end**: `{the_user['user_cooldown']}`\n" +
-            f"**Sub Time Left**: `{the_user['subscription_time_left']}`\n" +
-            f"**Sub Stage**: `{the_user['subscription_stage']}`\n" +
-            f"**Role**: `{the_user['role']}`\n\n" +
-            f"Notes about user: `{the_user['notes']}`\n",
-            color=int(config['colors']['success'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    else:
-        embd=discord.Embed(
-            title=f"Error getting user!",
-            description=f'`This user does not exist in the database.`',
-            color=int(config['colors']['error'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    
-    return await interaction.response.send_message(embed=embd, ephemeral=True)
+    return await interaction.response.send_message(content=f"Successfully generated `{amount}` accounts for `{service}`", file=accounts_in_file, ephemeral=True)
 
 @tree.command(name = "deleteservice", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
 @app_commands.autocomplete(service=service_autcom)
 async def deleteservice(interaction: discord.Interaction, service: str, is_premium: bool=False):
-    
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -418,7 +411,6 @@ async def deleteservice(interaction: discord.Interaction, service: str, is_premi
 
 @tree.command(name = "blacklist", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
 async def blacklistuser(interaction: discord.Interaction, user: discord.User, status: bool=None):
-    
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -451,8 +443,7 @@ async def blacklistuser(interaction: discord.Interaction, user: discord.User, st
     return await interaction.response.send_message(embed=embd, ephemeral=True)
 
 @tree.command(name = "setnote", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
-async def blacklistuser(interaction: discord.Interaction, user: discord.User, note: str):
-    
+async def setnote(interaction: discord.Interaction, user: discord.User, note: str):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -483,7 +474,6 @@ async def blacklistuser(interaction: discord.Interaction, user: discord.User, no
         embd.set_footer(text=config['messages']['footer-msg'])
     
     return await interaction.response.send_message(embed=embd, ephemeral=True)
-
 
 @tree.command(name="stock", description="Get the amount of stock", guild=discord.Object(id=config["guild-id"]))
 async def stock(interaction: discord.Interaction):
@@ -529,10 +519,9 @@ async def stock(interaction: discord.Interaction):
 
     return await interaction.response.send_message(embed=embd, ephemeral=config["stock-command-silent"])
 
-@subscription.command(name = "add", description = "(admin only)")
+@auth.command(name="add", description="Add subscription time to a user")
 @app_commands.autocomplete(stage=stage_autcom)
-async def addsubscription(interaction: discord.Interaction, user: discord.User, stage: str, time_sec: int, is_silent: bool=False):
-    
+async def add_subscription(interaction: discord.Interaction, user: discord.User, stage: str, time_sec: int, is_silent: bool=False):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -545,8 +534,8 @@ async def addsubscription(interaction: discord.Interaction, user: discord.User, 
     if not is_everything_ready:
         return await interaction.response.send_message("Bot is starting.", ephemeral=True)
     
-    if stage not in config['subscription-stages']:
-        return await interaction.response.send_message("Subscription stage does not exist.", ephemeral=True)
+    if stage not in ["Premium", "Free"]:
+        return await interaction.response.send_message("Subscription stage must be either Premium or Free.", ephemeral=True)
 
     the_user = await database.getUser(str(user.id))
     if the_user:
@@ -567,9 +556,9 @@ async def addsubscription(interaction: discord.Interaction, user: discord.User, 
     
     return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
 
-@subscription.command(name = "massadd", description = "(admin only)")
-async def massaddsubscription(interaction: discord.Interaction, time_sec: int, is_silent: bool=False):
-    
+@auth.command(name="massadd", description="Add subscription time to all users")
+@app_commands.autocomplete(stage=stage_autcom)
+async def massadd_subscription(interaction: discord.Interaction, stage: str, time_sec: int, is_silent: bool=False):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -581,6 +570,9 @@ async def massaddsubscription(interaction: discord.Interaction, time_sec: int, i
     
     if not is_everything_ready:
         return await interaction.response.send_message("Bot is starting.", ephemeral=True)
+    
+    if stage not in ["Premium", "Free"]:
+        return await interaction.response.send_message("Subscription stage must be either Premium or Free.", ephemeral=True)
     
     await interaction.response.send_message(content="Updating everyones subscription.. (this might take a while)", ephemeral=is_silent)
     amount_of_ppl = await database.mass_add_subscription(time_sec)
@@ -601,8 +593,8 @@ async def massaddsubscription(interaction: discord.Interaction, time_sec: int, i
     
     return await interaction.edit_original_response(content=None, embed=embd)
 
-@subscription.command(name = "view", description = "View your subscription")
-async def viewsubscription(interaction: discord.Interaction, user: discord.User=None, is_silent: bool=False):
+@auth.command(name="view", description="View subscription status")
+async def view_subscription(interaction: discord.Interaction, user: discord.User=None, is_silent: bool=False):
     if user:
         role_ids = [role.id for role in interaction.user.roles]
         if not any(role_id in config['admin-roles'] for role_id in role_ids):
@@ -663,47 +655,8 @@ async def viewsubscription(interaction: discord.Interaction, user: discord.User=
         
         return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
 
-@subscription.command(name = "set", description = "(admin only)")
-@app_commands.autocomplete(stage=stage_autcom)
-async def setsubscription(interaction: discord.Interaction, user: discord.User,  time_sec: int, stage: str="Premium", is_silent: bool=False):
-    
-    role_ids = [role.id for role in interaction.user.roles]
-    if not any(role_id in config['admin-roles'] for role_id in role_ids):
-        embed_error = discord.Embed(
-            title=f"Error: Access Forbidden",
-            description=f"You don't have permission to use this command.",
-            color=config['colors']['error']
-        )
-        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
-    
-    if not is_everything_ready:
-        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
-    
-    if stage not in config['subscription-stages']:
-        return await interaction.response.send_message("Subscription stage does not exist.", ephemeral=True)
-
-    the_user = await database.getUser(str(user.id))
-    if the_user:
-        await database.set_subscription(the_user['user_id'], time_sec, stage)
-        embd=discord.Embed(
-            title=f"Set subscription",
-            description=f"{user.mention}'s subscription has been set to stage `{stage}` for `{time_sec}` seconds.",
-            color=int(config['colors']['success'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    else:
-        embd=discord.Embed(
-            title=f"Error getting user!",
-            description=f'`This user does not exist in the database.`',
-            color=int(config['colors']['error'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    
-    return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
-
-@subscription.command(name = "remove", description = "(admin only)")
-async def setsubscription(interaction: discord.Interaction, user: discord.User, is_silent: bool=False):
-    
+@auth.command(name="remove", description="Remove subscription from a user")
+async def remove_subscription(interaction: discord.Interaction, user: discord.User, is_silent: bool=False):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -720,8 +673,8 @@ async def setsubscription(interaction: discord.Interaction, user: discord.User, 
     if the_user:
         await database.set_subscription(the_user['user_id'], 0, "Free", True)
         embd=discord.Embed(
-            title=f"Set subscription",
-            description=f"{user.mention}'s subscription has been reset.",
+            title=f"Remove subscription",
+            description=f"{user.mention}'s subscription has been removed.",
             color=int(config['colors']['success'])
         )
         embd.set_footer(text=config['messages']['footer-msg'])
@@ -735,10 +688,9 @@ async def setsubscription(interaction: discord.Interaction, user: discord.User, 
     
     return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
 
-@cooldown.command(name = "set", description = "(admin only)")
+@cooldown.command(name="set", description="Set cooldown for a user")
 @app_commands.autocomplete(stage=stage_autcom)
-async def setcustomcooldown(interaction: discord.Interaction, user: discord.User, stage: str, time_sec: int=None, is_silent: bool=False):
-    
+async def set_cooldown(interaction: discord.Interaction, user: discord.User, stage: str, time_sec: int, is_silent: bool=False):
     role_ids = [role.id for role in interaction.user.roles]
     if not any(role_id in config['admin-roles'] for role_id in role_ids):
         embed_error = discord.Embed(
@@ -751,160 +703,45 @@ async def setcustomcooldown(interaction: discord.Interaction, user: discord.User
     if not is_everything_ready:
         return await interaction.response.send_message("Bot is starting.", ephemeral=True)
 
-    if stage not in config['subscription-stages']:
-        return await interaction.response.send_message("Subscription stage does not exist.", ephemeral=True)
+    if stage not in ["Premium", "Free"]:
+        return await interaction.response.send_message("Stage must be either Premium or Free.", ephemeral=True)
 
-    the_user = await database.getUser(str(user.id))
-    if the_user:
-        if time_sec is not None:
-            await database.set_user_custom_cooldown(the_user['user_id'], stage, time_sec)
-            embd=discord.Embed(
-                title=f"Set custom cooldown",
-                description=f"{user.mention}'s custom cooldown for `{stage}` has been set to `{time_sec}` seconds.",
-                color=int(config['colors']['success'])
-            )
-            embd.set_footer(text=config['messages']['footer-msg'])
-        else:
-            await database.reset_user_custom_cooldown(the_user['user_id'], stage)
-            embd=discord.Embed(
-                title=f"Set custom cooldown",
-                description=f"{user.mention}'s custom cooldown has been reset.",
-                color=int(config['colors']['success'])
-            )
-            embd.set_footer(text=config['messages']['footer-msg'])
-    else:
-        embd=discord.Embed(
-            title=f"Error getting user!",
-            description=f'`This user does not exist in the database.`',
-            color=int(config['colors']['error'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    
-    return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
-
-@cooldown.command(name = "reset", description = "(admin only)")
-@app_commands.autocomplete(stage=stage_autcom)
-async def resetcooldown(interaction: discord.Interaction, user: discord.User, stage: str):
-    
-    role_ids = [role.id for role in interaction.user.roles]
-    if not any(role_id in config['admin-roles'] for role_id in role_ids):
-        embed_error = discord.Embed(
-            title=f"Error: Access Forbidden",
-            description=f"You don't have permission to use this command.",
-            color=config['colors']['error']
-        )
-        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
-    
-    if not is_everything_ready:
-        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
-    
-    if stage not in config['subscription-stages']:
-        return await interaction.response.send_message("Subscription stage does not exist.", ephemeral=True)
-
-    the_user = await database.getUser(str(user.id))
-    if the_user:
-        
-        await database.reset_user_cooldown(the_user['user_id'], stage)
-        embd=discord.Embed(
-            title=f"Set cooldown",
-            description=f"{user.mention}'s {str(stage)} cooldown has been reset.",
-            color=int(config['colors']['success'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    else:
-        embd=discord.Embed(
-            title=f"Error getting user!",
-            description=f'`This user does not exist in the database.`',
-            color=int(config['colors']['error'])
-        )
-        embd.set_footer(text=config['messages']['footer-msg'])
-    
-    return await interaction.response.send_message(embed=embd, ephemeral=True)
-
-@tree.command(name = "check", description = "(admin only)", guild=discord.Object(id=config["guild-id"]))
-async def gen(interaction: discord.Interaction, account: str):
-    
-    role_ids = [role.id for role in interaction.user.roles]
-    if not any(role_id in config['admin-roles'] for role_id in role_ids):
-        embed_error = discord.Embed(
-            title=f"Error: Access Forbidden",
-            description=f"You don't have permission to use this command.",
-            color=config['colors']['error']
-        )
-        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
-
-    if not is_everything_ready:
-        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
-    
-    await database.addUser(str(interaction.user.id))
-    await interaction.response.defer(ephemeral=True)
-
+    await database.set_user_cooldown(str(user.id), stage, time_sec)
     embd=discord.Embed(
-        title=f"★ Checking account :gem: ",
-        description=f"\n||```yml\n{account}\n```||",
-        color=config['colors']['success']
+        title=f"Set cooldown",
+        description=f"{user.mention}'s cooldown has been set to `{time_sec}` seconds for {stage}.",
+        color=int(config['colors']['success'])
     )
-    embd.add_field(
-        name="★ Basic Information",
-        value='`The account is being checked, be patient!`'
+    embd.set_footer(text=config['messages']['footer-msg'])
+    
+    return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
+
+@cooldown.command(name="reset", description="Reset cooldown for a user")
+@app_commands.autocomplete(stage=stage_autcom)
+async def reset_cooldown(interaction: discord.Interaction, user: discord.User, stage: str, is_silent: bool=False):
+    role_ids = [role.id for role in interaction.user.roles]
+    if not any(role_id in config['admin-roles'] for role_id in role_ids):
+        embed_error = discord.Embed(
+            title=f"Error: Access Forbidden",
+            description=f"You don't have permission to use this command.",
+            color=config['colors']['error']
+        )
+        return await interaction.response.send_message(embed=embed_error, ephemeral=True)
+    
+    if not is_everything_ready:
+        return await interaction.response.send_message("Bot is starting.", ephemeral=True)
+
+    if stage not in ["Premium", "Free"]:
+        return await interaction.response.send_message("Stage must be either Premium or Free.", ephemeral=True)
+
+    await database.reset_user_cooldown(str(user.id), stage)
+    embd=discord.Embed(
+        title=f"Reset cooldown",
+        description=f"{user.mention}'s cooldown has been reset for {stage}.",
+        color=int(config['colors']['success'])
     )
-
-    embd2=discord.Embed(title=f"Checking account :gem: ",description=f':incoming_envelope: Check your DMs for the account.',color=config['colors']['success'])
-    embd2.set_footer(text=config['messages']['footer-msg'],icon_url=interaction.user.display_avatar.url)
-    await interaction.followup.send(embed=embd2, ephemeral=True)
-    embd.set_footer(text=config['messages']['footer-msg'],icon_url=interaction.user.display_avatar.url)
-
-    try:
-        channel = await interaction.user.create_dm()
-        msg = await channel.send(embed=embd)
-        
-        try:
-            inform = await siege_checker.getAccountDetails(account)
-            
-            embd=discord.Embed(
-                title=f"★ Checking account :gem: ",
-                description=f"\n||```yml\n{account}\n```||",
-                color=config['colors']['success']
-            )
-
-            if not inform['success']:
-                embd.color = config['colors']['error']
-                embd.add_field(
-                    name="★ Basic Information",
-                    value='`Failed to retrieve basic information!`'
-                )
-            else:
-                info = inform['information']
-                ghost_link = f"**Ghost Linked Platforms**: " + ", ".join(f"`{platform}`" for platform in info['ghost_linked']) + "\n"
-                ghost_link_2 = f'{ghost_link}' if len(info['ghost_linked']) >= 1 else ''
-                info_note = info['note']
-                info_note_2 = '' if not info_note else f"**{info_note}**" + "\n"
-                embd.add_field(
-                    name="★ Basic Information",
-                    value=f"**Username**: `{info['username']}`\n" + 
-                    f"**Level Info**:  `{info['level']}` **({info['xp']} XP)**\n" + 
-                    f"**Linked Platforms**: " + ", ".join(f"`{platform}`" for platform in info['linked_platforms']) + "\n" + 
-                    f"{ghost_link_2}" + 
-                    f"**2FA/MFA**:  `{info['2fa-mfa']}`\n" + 
-                    f"**Currency**: Renown: `{info['currency-renown']}`; Credits: `{info['currency-credits']}`\n" + 
-                    f"**Banned**: `{info['banned']}`\n" + 
-                    f"**Skins**: `{info['amount_of_skins']}`\n\n" + 
-                    f'{info_note_2}' + 
-                    f"For more info about this account check [HERE]({str(info['siegeskinssiteurl'])})!",
-                    inline=False
-                )
-                try:
-                    items_25_inventory = list(info['inventory'].items())[:24]
-                    info['inventory'] = dict(items_25_inventory)
-                    for category, item_count in info['inventory'].items():
-                        embd.add_field(name=str(category), value=f"{str(item_count)} items.", inline=True)
-                except Exception as e:
-                    pass
-            embd.set_footer(text=config['messages']['footer-msg'],icon_url=interaction.user.display_avatar.url)
-            return await msg.edit(embed=embd)
-        except Exception as e:
-            pass
-    except discord.errors.Forbidden:
-        return await interaction.followup.send(content=f"{interaction.user.mention}, couldn't send you a DM, open your DMs!", ephemeral=True)
+    embd.set_footer(text=config['messages']['footer-msg'])
+    
+    return await interaction.response.send_message(embed=embd, ephemeral=is_silent)
 
 bot.run(config['token'])
