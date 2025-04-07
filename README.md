@@ -5,6 +5,11 @@ A powerful Discord bot for managing and distributing accounts with premium featu
 ![Discord Bot](https://img.shields.io/badge/Discord-Bot-7289DA?style=for-the-badge&logo=discord&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 
+## Developer 
+
+- @Censored.Softworks
+- @team.censoredsoftworks@gmail.com
+
 ## ✨ Features
 
 ### Account Management
